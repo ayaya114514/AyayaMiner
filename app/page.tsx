@@ -19,16 +19,8 @@ import {
 
 const LONG_PRESS_MS = 430;
 
-function preferredDimensions() {
-  const portrait =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(orientation: portrait) and (max-width: 720px)').matches;
-  return portrait ? { rows: 30, columns: 16 } : { rows: 16, columns: 30 };
-}
-
 function freshGame() {
-  const { rows, columns } = preferredDimensions();
-  return createGame(rows, columns);
+  return createGame();
 }
 
 function formatCounter(value: number) {
@@ -87,22 +79,6 @@ export default function Home() {
     const interval = window.setInterval(updateTimer, 250);
     return () => window.clearInterval(interval);
   }, [game.status]);
-
-  useEffect(() => {
-    const updateReadyBoardOrientation = () => {
-      if (game.status !== 'ready' || game.flaggedCount > 0) return;
-      const dimensions = preferredDimensions();
-      if (
-        dimensions.rows !== game.rows ||
-        dimensions.columns !== game.columns
-      ) {
-        setGame(createGame(dimensions.rows, dimensions.columns));
-      }
-    };
-    window.addEventListener('resize', updateReadyBoardOrientation);
-    return () =>
-      window.removeEventListener('resize', updateReadyBoardOrientation);
-  }, [game.columns, game.flaggedCount, game.rows, game.status]);
 
   const finalizeTime = useCallback(() => {
     if (startedAt.current !== null) {
@@ -239,6 +215,9 @@ export default function Home() {
           {game.cells.map((cell, index) => {
             const wrongFlag =
               game.status === 'lost' && cell.flagged && !cell.mine;
+            const portraitOrder =
+              (index % game.columns) * game.rows +
+              Math.floor(index / game.columns);
             const className = [
               'cell',
               cell.open ? 'cell-open' : '',
@@ -261,6 +240,7 @@ export default function Home() {
                 aria-label={cellLabel(cell, index)}
                 aria-pressed={cell.flagged}
                 disabled={isComplete}
+                style={{ '--portrait-order': portraitOrder } as CSSProperties}
                 onClick={() => openCell(index)}
                 onContextMenu={(event) => {
                   event.preventDefault();

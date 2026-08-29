@@ -588,10 +588,15 @@ h1 {
 
 @media (orientation: portrait) and (max-width: 720px) {
   .minefield {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
     width: auto;
     height: min(100%, calc((100vw - 34px) * 1.875));
     max-width: 100%;
     aspect-ratio: 16 / 30;
+  }
+
+  .cell {
+    order: var(--portrait-order);
   }
 }
 
