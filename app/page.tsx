@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from 'react';
-import { Bomb, Flag, RotateCcw, Timer } from 'lucide-react';
+import { Bomb, Flag, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   createGame,
@@ -14,14 +14,9 @@ import {
   revealCell,
   toggleFlag,
   type Cell,
-  type GameState,
 } from '@/src/engine';
 
 const LONG_PRESS_MS = 430;
-
-function freshGame() {
-  return createGame();
-}
 
 function formatCounter(value: number) {
   return Math.min(999, Math.max(0, value)).toString().padStart(3, '0');
@@ -36,26 +31,14 @@ function cellLabel(cell: Cell, index: number) {
   return `第 ${index + 1} 格，未翻开`;
 }
 
-function statusText(game: GameState, elapsed: number) {
-  if (game.status === 'won') return `矿区已清理 · ${elapsed} 秒`;
-  if (game.status === 'lost') return '探测中断 · 点击重置再试';
-  if (game.status === 'playing') {
-    return `${game.openedCount} / ${game.cells.length - game.mineCount} 安全区已清理`;
-  }
-  return '点击任意方格开始计时';
-}
-
 export default function Home() {
-  const [game, setGame] = useState(freshGame);
+  const [game, setGame] = useState(createGame);
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef<number | null>(null);
   const longPress = useRef<{
     timer: number | null;
     suppressedIndex: number | null;
-  }>({
-    timer: null,
-    suppressedIndex: null,
-  });
+  }>({ timer: null, suppressedIndex: null });
 
   const stopLongPressTimer = useCallback(() => {
     if (longPress.current.timer !== null) {
@@ -80,7 +63,7 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [game.status]);
 
-  const finalizeTime = useCallback(() => {
+  const finishTimer = useCallback(() => {
     if (startedAt.current !== null) {
       setElapsed(
         Math.min(999, Math.floor((Date.now() - startedAt.current) / 1000)),
@@ -103,13 +86,14 @@ export default function Home() {
         startedAt.current = Date.now();
         setElapsed(0);
       }
-      if (nextGame.status === 'won' || nextGame.status === 'lost')
-        finalizeTime();
+      if (nextGame.status === 'won' || nextGame.status === 'lost') {
+        finishTimer();
+      }
       if (nextGame.status === 'lost') navigator.vibrate?.(35);
       if (nextGame.status === 'won') navigator.vibrate?.([20, 40, 20]);
       setGame(nextGame);
     },
-    [finalizeTime, game],
+    [finishTimer, game],
   );
 
   const markCell = useCallback((index: number) => {
@@ -121,7 +105,7 @@ export default function Home() {
     startedAt.current = null;
     longPress.current.suppressedIndex = null;
     setElapsed(0);
-    setGame(freshGame());
+    setGame(createGame());
   }, [stopLongPressTimer]);
 
   const handlePointerDown = (
@@ -143,46 +127,27 @@ export default function Home() {
     '--columns': game.columns,
     '--board-ratio': `${game.columns} / ${game.rows}`,
   } as CSSProperties;
-  const remaining = minesRemaining(game);
   const isComplete = game.status === 'won' || game.status === 'lost';
 
   return (
-    <main className={`game-shell status-${game.status}`}>
-      <div className="ambient-glow" aria-hidden="true" />
-      <header className="game-header">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-          </span>
-          <div>
-            <p className="eyebrow">
-              EXPERT FIELD · {game.columns} × {game.rows}
-            </p>
-            <h1>AyayaMiner</h1>
-          </div>
-        </div>
-
-        <p className="mission-copy" aria-live="polite">
-          {game.status === 'ready'
-            ? '清理矿区，不留猜测。'
-            : statusText(game, elapsed)}
-        </p>
-
-        <div className="status-cluster" aria-label="游戏状态">
-          <div className="status-item" title="剩余标记数">
-            <Flag aria-hidden="true" />
-            <span>{formatCounter(remaining)}</span>
-            <small>标记</small>
-          </div>
-          <div className="status-item" title="用时">
-            <Timer aria-hidden="true" />
-            <span>{formatCounter(elapsed)}</span>
-            <small>秒</small>
-          </div>
+    <main className="game">
+      <header>
+        <h1>AyayaMiner</h1>
+        <div className="controls" aria-label="游戏状态">
+          <dl>
+            <div>
+              <dt>雷</dt>
+              <dd>{formatCounter(minesRemaining(game))}</dd>
+            </div>
+            <div>
+              <dt>时间</dt>
+              <dd>{formatCounter(elapsed)}</dd>
+            </div>
+          </dl>
           <Button
-            className="reset-button"
+            className="reset"
             variant="outline"
-            size="icon-lg"
+            size="icon"
             onClick={reset}
             aria-label="重新开始"
           >
@@ -191,25 +156,10 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="minefield-wrap" aria-label="专家扫雷棋盘">
-        <div className="corner-label top-left">A-01</div>
-        <div className="corner-label top-right">99 MINES</div>
-        <div className="corner-label bottom-left">FIRST MOVE SAFE</div>
+      <section className="board-area" aria-label="专家扫雷棋盘">
         <div
-          className={`corner-label bottom-right field-status field-status-${game.status}`}
-        >
-          {game.status === 'ready'
-            ? 'READY'
-            : game.status === 'playing'
-              ? 'MINING'
-              : game.status === 'won'
-                ? 'CLEAR'
-                : 'BREACH'}
-        </div>
-
-        <div
-          className="minefield"
-          aria-label={`${game.columns} 列 ${game.rows} 行，99 个地雷`}
+          className="board"
+          aria-label="30 列 16 行，99 个地雷"
           style={boardStyle}
         >
           {game.cells.map((cell, index) => {
@@ -220,13 +170,13 @@ export default function Home() {
               Math.floor(index / game.columns);
             const className = [
               'cell',
-              cell.open ? 'cell-open' : '',
-              cell.flagged ? 'cell-flagged' : '',
-              cell.open && cell.mine ? 'cell-mine' : '',
-              cell.exploded ? 'cell-exploded' : '',
-              wrongFlag ? 'cell-wrong' : '',
+              cell.open ? 'open' : '',
+              cell.flagged ? 'flagged' : '',
+              cell.open && cell.mine ? 'mine' : '',
+              cell.exploded ? 'exploded' : '',
+              wrongFlag ? 'wrong' : '',
               cell.open && !cell.mine && cell.adjacent > 0
-                ? `cell-number cell-${cell.adjacent}`
+                ? `number n${cell.adjacent}`
                 : '',
             ]
               .filter(Boolean)
@@ -268,36 +218,19 @@ export default function Home() {
         </div>
 
         {isComplete && (
-          <div
-            className={`result-panel result-${game.status}`}
-            role="alert"
-            aria-live="assertive"
-          >
-            <p className="result-kicker">
-              {game.status === 'won' ? 'FIELD CLEAR' : 'SIGNAL LOST'}
-            </p>
-            <h2>{game.status === 'won' ? '矿区已清理' : '你触发了地雷'}</h2>
+          <div className="result" role="alert" aria-live="assertive">
+            <h2>{game.status === 'won' ? '完成' : '触雷'}</h2>
             <p>
               {game.status === 'won'
-                ? `${elapsed} 秒完成专家级勘探。`
-                : `已清理 ${game.openedCount} 个安全区，重新校准后再试。`}
+                ? `${elapsed} 秒`
+                : `${game.openedCount} / ${game.cells.length - game.mineCount}`}
             </p>
-            <Button className="result-button" onClick={reset}>
-              <RotateCcw aria-hidden="true" />
-              再来一局
+            <Button className="again" variant="outline" onClick={reset}>
+              重新开始
             </Button>
           </div>
         )}
       </section>
-
-      <footer className="game-footer">
-        <p>
-          <span className="pulse-dot" />
-          {statusText(game, elapsed)}
-        </p>
-        <p className="desktop-hint">左键排雷 · 右键标记 · 点击数字快速展开</p>
-        <p className="mobile-hint">轻触排雷 · 长按标记</p>
-      </footer>
     </main>
   );
 }
