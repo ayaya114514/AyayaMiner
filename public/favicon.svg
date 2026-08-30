@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#101010"/>
-  <rect x="13" y="13" width="18" height="18" fill="#eeeeec"/>
-  <rect x="33" y="13" width="18" height="18" fill="#343434"/>
-  <rect x="13" y="33" width="18" height="18" fill="#343434"/>
-  <rect x="33" y="33" width="18" height="18" fill="#d06b61"/>
+  <rect width="64" height="64" rx="8" fill="#101010"/>
+  <rect x="7" y="7" width="24" height="24" fill="#151515"/>
+  <rect x="33" y="7" width="24" height="24" fill="#242424"/>
+  <rect x="7" y="33" width="24" height="24" fill="#242424"/>
+  <rect x="33" y="33" width="24" height="24" fill="#d06b61"/>
+  <path d="M17 14h5v11h4v3H14v-3h4v-8h-3v-2z" fill="#7799c6"/>
+  <path d="M41 12v15M42 13h10l-3 4 3 4H42" fill="none" stroke="#d06b61" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 42c0-4 3-6 6-6s6 2 6 5c0 5-5 5-5 9M21 54h.01" fill="none" stroke="#aaa9a5" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="45" cy="45" r="6" fill="#101010"/>
+  <path d="M45 35v4M45 51v4M35 45h4M51 45h4M38 38l3 3M49 49l3 3M52 38l-3 3M41 49l-3 3" stroke="#101010" stroke-width="2" stroke-linecap="round"/>
 </svg>

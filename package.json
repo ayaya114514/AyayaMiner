@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --experimental-strip-types --test src/engine.test.ts",
+    "test": "node --experimental-strip-types --test src/engine.test.ts src/board-layout.test.ts",
     "lint": "oxlint app src components/ui/button.tsx lib/utils.ts vite.config.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",

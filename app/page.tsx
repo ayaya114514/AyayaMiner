@@ -9,6 +9,12 @@ import {
 import { Bomb, Flag, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  calculateBoardLayout,
+  COMPACT_CELL_SIZE,
+  DESKTOP_CELL_SIZE,
+  type BoardLayout,
+} from '@/src/board-layout';
+import {
   createGame,
   cycleCellMark,
   minesRemaining,
@@ -17,9 +23,26 @@ import {
 } from '@/src/engine';
 
 const LONG_PRESS_MS = 430;
+const COMPACT_BOARD_QUERY = '(orientation: portrait) and (max-width: 720px)';
+
+function gameFromLayout(layout: BoardLayout) {
+  return createGame(layout.rows, layout.columns, layout.mineCount);
+}
+
+function initialGame() {
+  const cellSize = window.matchMedia(COMPACT_BOARD_QUERY).matches
+    ? COMPACT_CELL_SIZE
+    : DESKTOP_CELL_SIZE;
+  const layout = calculateBoardLayout(
+    Math.max(1, window.innerWidth - 20),
+    Math.max(1, window.innerHeight - 62),
+    cellSize,
+  );
+  return gameFromLayout(layout);
+}
 
 function formatCounter(value: number) {
-  return Math.min(999, Math.max(0, value)).toString().padStart(3, '0');
+  return Math.max(0, value).toString().padStart(3, '0');
 }
 
 function cellLabel(cell: Cell, index: number) {
@@ -33,8 +56,14 @@ function cellLabel(cell: Cell, index: number) {
 }
 
 export default function Home() {
-  const [game, setGame] = useState(createGame);
+  const [game, setGame] = useState(initialGame);
   const [elapsed, setElapsed] = useState(0);
+  const boardArea = useRef<HTMLElement>(null);
+  const layout = useRef<BoardLayout>({
+    rows: game.rows,
+    columns: game.columns,
+    mineCount: game.mineCount,
+  });
   const startedAt = useRef<number | null>(null);
   const longPress = useRef<{
     timer: number | null;
@@ -49,6 +78,43 @@ export default function Home() {
   }, []);
 
   useEffect(() => stopLongPressTimer, [stopLongPressTimer]);
+
+  useEffect(() => {
+    const element = boardArea.current;
+    if (!element) return;
+
+    const syncBoardToArea = () => {
+      const cellSize =
+        Number.parseFloat(
+          window.getComputedStyle(element).getPropertyValue('--cell-size'),
+        ) || DESKTOP_CELL_SIZE;
+      const nextLayout = calculateBoardLayout(
+        element.clientWidth,
+        element.clientHeight,
+        cellSize,
+      );
+      const currentLayout = layout.current;
+      if (
+        nextLayout.rows === currentLayout.rows &&
+        nextLayout.columns === currentLayout.columns &&
+        nextLayout.mineCount === currentLayout.mineCount
+      ) {
+        return;
+      }
+
+      layout.current = nextLayout;
+      stopLongPressTimer();
+      startedAt.current = null;
+      longPress.current.suppressedIndex = null;
+      setElapsed(0);
+      setGame(gameFromLayout(nextLayout));
+    };
+
+    const resizeObserver = new ResizeObserver(syncBoardToArea);
+    resizeObserver.observe(element);
+    syncBoardToArea();
+    return () => resizeObserver.disconnect();
+  }, [stopLongPressTimer]);
 
   useEffect(() => {
     if (game.status !== 'playing' || startedAt.current === null) return;
@@ -106,7 +172,7 @@ export default function Home() {
     startedAt.current = null;
     longPress.current.suppressedIndex = null;
     setElapsed(0);
-    setGame(createGame());
+    setGame(gameFromLayout(layout.current));
   }, [stopLongPressTimer]);
 
   const handlePointerDown = (
@@ -126,7 +192,6 @@ export default function Home() {
 
   const boardStyle = {
     '--columns': game.columns,
-    '--board-ratio': `${game.columns} / ${game.rows}`,
   } as CSSProperties;
   const isComplete = game.status === 'won' || game.status === 'lost';
 
@@ -157,18 +222,15 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="board-area" aria-label="专家扫雷棋盘">
+      <section ref={boardArea} className="board-area" aria-label="扫雷棋盘">
         <div
           className="board"
-          aria-label="30 列 16 行，99 个地雷"
+          aria-label={`${game.columns} 列 ${game.rows} 行，${game.mineCount} 个地雷`}
           style={boardStyle}
         >
           {game.cells.map((cell, index) => {
             const wrongFlag =
               game.status === 'lost' && cell.flagged && !cell.mine;
-            const portraitOrder =
-              (index % game.columns) * game.rows +
-              Math.floor(index / game.columns);
             const className = [
               'cell',
               cell.open ? 'open' : '',
@@ -194,7 +256,6 @@ export default function Home() {
                   cell.flagged ? true : cell.questioned ? 'mixed' : false
                 }
                 disabled={isComplete}
-                style={{ '--portrait-order': portraitOrder } as CSSProperties}
                 onClick={() => openCell(index)}
                 onContextMenu={(event) => {
                   event.preventDefault();
