@@ -159,7 +159,7 @@ h1 {
   gap: 1px;
   width: max-content;
   height: max-content;
-  background: #323232;
+  background: #505050;
 }
 
 .cell {
@@ -170,23 +170,25 @@ h1 {
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: #242424;
+  background: #2d2d2d;
+  box-shadow: inset 0 0 0 1px #3d3d3d;
   color: transparent;
   cursor: default;
 }
 
 .cell:hover {
-  background: #2c2c2c;
+  background: #383838;
+  box-shadow: inset 0 0 0 1px #505050;
 }
 
 .cell:active {
-  background: #383838;
+  background: #484848;
 }
 
 .cell:focus-visible {
   z-index: 1;
-  outline: 1px solid #a5a5a1;
-  outline-offset: -1px;
+  outline: 2px solid #eeeeec;
+  outline-offset: -2px;
 }
 
 .cell:disabled {
@@ -194,69 +196,70 @@ h1 {
 }
 
 .cell.open {
-  background: #151515;
+  background: #101010;
+  box-shadow: none;
   font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: clamp(7px, 2vmin, 14px);
-  font-weight: 600;
+  font-size: clamp(10px, 2.6vmin, 14px);
+  font-weight: 700;
 }
 
 .cell.flagged {
-  color: #d06b61;
-  background: #242424;
+  color: #eb7d72;
+  background: #2d2d2d;
 }
 
 .cell.questioned {
-  color: #aaa9a5;
-  background: #242424;
+  color: #c8c7c2;
+  background: #2d2d2d;
   font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: clamp(9px, 2vmin, 15px);
-  font-weight: 600;
+  font-size: clamp(11px, 3vmin, 15px);
+  font-weight: 700;
 }
 
 .cell.flagged svg,
 .cell.mine svg {
-  width: 45%;
-  height: 45%;
-  stroke-width: 2;
+  width: 50%;
+  height: 50%;
+  stroke-width: 2.25;
 }
 
 .cell.mine {
-  color: #777775;
+  color: #999995;
 }
 
 .cell.exploded {
   color: #101010;
-  background: #d06b61;
+  background: #eb7d72;
 }
 
 .cell.wrong {
-  color: #d06b61;
-  background: #151515;
+  color: #eb7d72;
+  background: #101010;
 }
 
 .n1 {
-  color: #7799c6;
+  color: #8fb9ed;
 }
 .n2 {
-  color: #829c72;
+  color: #9abd87;
 }
 .n3 {
-  color: #c1736e;
+  color: #ef8b84;
 }
 .n4 {
-  color: #8e7ea8;
+  color: #b7a1d8;
 }
 .n5 {
-  color: #ad8067;
+  color: #dca080;
 }
 .n6 {
-  color: #6f9997;
+  color: #88c5c1;
 }
 .n7 {
-  color: #aaa9a5;
+  color: #e0dfda;
 }
 .n8 {
-  color: #686866;
+  color: #a5a5a1;
 }
 
 .result {
