@@ -155,7 +155,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
   gap: 1px;
-  width: min(100%, calc((100dvh - 62px) * 1.875));
+  width: min(100%, calc((100dvh - 62px) * 1.875), 840px);
   max-height: 100%;
   aspect-ratio: var(--board-ratio);
   background: #323232;
@@ -203,6 +203,14 @@ h1 {
 .cell.flagged {
   color: #d06b61;
   background: #242424;
+}
+
+.cell.questioned {
+  color: #aaa9a5;
+  background: #242424;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: clamp(9px, 2vmin, 15px);
+  font-weight: 600;
 }
 
 .cell.flagged svg,

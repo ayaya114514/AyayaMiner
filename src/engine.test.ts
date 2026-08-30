@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   createGame,
+  cycleCellMark,
   minesRemaining,
   neighborsOf,
   placeMines,
   revealCell,
-  toggleFlag,
 } from './engine.ts';
 
 const fixedRandom = () => 0;
@@ -47,13 +47,32 @@ void describe('AyayaMiner engine', () => {
     assert.ok(game.openedCount >= 1);
   });
 
-  void it('allows flags before play without starting the board', () => {
-    const flagged = toggleFlag(createGame(), 7);
+  void it('cycles a hidden cell through flag, question, and clear', () => {
+    const flagged = cycleCellMark(createGame(), 7);
     assert.equal(flagged.status, 'ready');
     assert.equal(flagged.cells[7].flagged, true);
+    assert.equal(flagged.cells[7].questioned, false);
     assert.equal(flagged.flaggedCount, 1);
     assert.equal(minesRemaining(flagged), 98);
     assert.equal(revealCell(flagged, 7, fixedRandom), flagged);
+
+    const questioned = cycleCellMark(flagged, 7);
+    assert.equal(questioned.cells[7].flagged, false);
+    assert.equal(questioned.cells[7].questioned, true);
+    assert.equal(questioned.flaggedCount, 0);
+    assert.equal(minesRemaining(questioned), 99);
+
+    const cleared = cycleCellMark(questioned, 7);
+    assert.equal(cleared.cells[7].flagged, false);
+    assert.equal(cleared.cells[7].questioned, false);
+    assert.equal(cleared.flaggedCount, 0);
+  });
+
+  void it('allows a questioned cell to be revealed', () => {
+    const questioned = cycleCellMark(cycleCellMark(createGame(), 225), 225);
+    const revealed = revealCell(questioned, 225, fixedRandom);
+    assert.equal(revealed.cells[225].open, true);
+    assert.equal(revealed.cells[225].questioned, false);
   });
 
   void it('reveals every mine and marks the detonated cell on loss', () => {

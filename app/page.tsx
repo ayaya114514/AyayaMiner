@@ -10,9 +10,9 @@ import { Bomb, Flag, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   createGame,
+  cycleCellMark,
   minesRemaining,
   revealCell,
-  toggleFlag,
   type Cell,
 } from '@/src/engine';
 
@@ -26,6 +26,7 @@ function cellLabel(cell: Cell, index: number) {
   if (cell.exploded) return `第 ${index + 1} 格，触发的地雷`;
   if (cell.open && cell.mine) return `第 ${index + 1} 格，地雷`;
   if (cell.flagged) return `第 ${index + 1} 格，已标记`;
+  if (cell.questioned) return `第 ${index + 1} 格，问号标记`;
   if (cell.open && cell.adjacent === 0) return `第 ${index + 1} 格，安全空白`;
   if (cell.open) return `第 ${index + 1} 格，周围有 ${cell.adjacent} 个地雷`;
   return `第 ${index + 1} 格，未翻开`;
@@ -97,7 +98,7 @@ export default function Home() {
   );
 
   const markCell = useCallback((index: number) => {
-    setGame((current) => toggleFlag(current, index));
+    setGame((current) => cycleCellMark(current, index));
   }, []);
 
   const reset = useCallback(() => {
@@ -172,6 +173,7 @@ export default function Home() {
               'cell',
               cell.open ? 'open' : '',
               cell.flagged ? 'flagged' : '',
+              cell.questioned ? 'questioned' : '',
               cell.open && cell.mine ? 'mine' : '',
               cell.exploded ? 'exploded' : '',
               wrongFlag ? 'wrong' : '',
@@ -188,7 +190,9 @@ export default function Home() {
                 key={index}
                 type="button"
                 aria-label={cellLabel(cell, index)}
-                aria-pressed={cell.flagged}
+                aria-pressed={
+                  cell.flagged ? true : cell.questioned ? 'mixed' : false
+                }
                 disabled={isComplete}
                 style={{ '--portrait-order': portraitOrder } as CSSProperties}
                 onClick={() => openCell(index)}
@@ -208,6 +212,9 @@ export default function Home() {
               >
                 {cell.flagged && !cell.open && !wrongFlag && (
                   <Flag aria-hidden="true" fill="currentColor" />
+                )}
+                {cell.questioned && !cell.open && (
+                  <span aria-hidden="true">?</span>
                 )}
                 {wrongFlag && <span aria-hidden="true">×</span>}
                 {cell.open && cell.mine && <Bomb aria-hidden="true" />}

@@ -5,6 +5,7 @@ export type Cell = {
   adjacent: number;
   open: boolean;
   flagged: boolean;
+  questioned: boolean;
   exploded: boolean;
 };
 
@@ -27,6 +28,7 @@ const emptyCell = (): Cell => ({
   adjacent: 0,
   open: false,
   flagged: false,
+  questioned: false,
   exploded: false,
 });
 
@@ -133,6 +135,7 @@ function openSafeArea(game: GameState, startIndexes: number[]): GameState {
     if (cell.open || cell.flagged || cell.mine) continue;
 
     cell.open = true;
+    cell.questioned = false;
     openedCount += 1;
 
     if (cell.adjacent === 0) {
@@ -154,7 +157,10 @@ function openSafeArea(game: GameState, startIndexes: number[]): GameState {
   const hasWon = openedCount === cells.length - game.mineCount;
   if (hasWon) {
     for (const cell of cells) {
-      if (cell.mine) cell.flagged = true;
+      if (cell.mine) {
+        cell.flagged = true;
+        cell.questioned = false;
+      }
     }
   }
 
@@ -214,22 +220,26 @@ export function revealCell(
   return openSafeArea(game, [index]);
 }
 
-export function toggleFlag(game: GameState, index: number): GameState {
+export function cycleCellMark(game: GameState, index: number): GameState {
   if (index < 0 || index >= game.cells.length) return game;
   if (game.status === 'won' || game.status === 'lost' || game.cells[index].open)
     return game;
 
-  const flagged = !game.cells[index].flagged;
-  if (flagged && game.flaggedCount >= game.mineCount) return game;
+  const cell = game.cells[index];
+  if (!cell.flagged && !cell.questioned && game.flaggedCount >= game.mineCount)
+    return game;
+
+  const flagged = !cell.flagged && !cell.questioned;
+  const questioned = cell.flagged;
 
   const cells = game.cells.map((cell, cellIndex) =>
-    cellIndex === index ? { ...cell, flagged } : cell,
+    cellIndex === index ? { ...cell, flagged, questioned } : cell,
   );
 
   return {
     ...game,
     cells,
-    flaggedCount: game.flaggedCount + (flagged ? 1 : -1),
+    flaggedCount: game.flaggedCount + (flagged ? 1 : cell.flagged ? -1 : 0),
   };
 }
 
