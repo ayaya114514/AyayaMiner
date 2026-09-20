@@ -2,14 +2,20 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   createGame,
-  cycleCellMark,
   minesRemaining,
   neighborsOf,
   placeMines,
   revealCell,
+  toggleFlag,
 } from './engine.ts';
 
-const fixedRandom = () => 0;
+function seededRandom(seed = 1) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+}
 
 void describe('AyayaMiner engine', () => {
   void it('creates the fixed expert board', () => {
@@ -27,7 +33,7 @@ void describe('AyayaMiner engine', () => {
   });
 
   void it('places the requested number of mines outside the first-click safe area', () => {
-    const game = placeMines(createGame(), 225, fixedRandom);
+    const game = placeMines(createGame(), 225, seededRandom());
     const protectedArea = new Set([
       225,
       ...neighborsOf(225, game.rows, game.columns),
@@ -40,43 +46,29 @@ void describe('AyayaMiner engine', () => {
   });
 
   void it('opens on the first click and never detonates it', () => {
-    const game = revealCell(createGame(), 225, fixedRandom);
+    const game = revealCell(createGame(), 225, seededRandom());
     assert.equal(game.status, 'playing');
     assert.equal(game.cells[225].mine, false);
     assert.equal(game.cells[225].open, true);
     assert.ok(game.openedCount >= 1);
   });
 
-  void it('cycles a hidden cell through flag, question, and clear', () => {
-    const flagged = cycleCellMark(createGame(), 7);
+  void it('toggles a flag without starting the board', () => {
+    const flagged = toggleFlag(createGame(), 7);
     assert.equal(flagged.status, 'ready');
     assert.equal(flagged.cells[7].flagged, true);
-    assert.equal(flagged.cells[7].questioned, false);
     assert.equal(flagged.flaggedCount, 1);
     assert.equal(minesRemaining(flagged), 98);
-    assert.equal(revealCell(flagged, 7, fixedRandom), flagged);
+    assert.equal(revealCell(flagged, 7, seededRandom()), flagged);
 
-    const questioned = cycleCellMark(flagged, 7);
-    assert.equal(questioned.cells[7].flagged, false);
-    assert.equal(questioned.cells[7].questioned, true);
-    assert.equal(questioned.flaggedCount, 0);
-    assert.equal(minesRemaining(questioned), 99);
-
-    const cleared = cycleCellMark(questioned, 7);
+    const cleared = toggleFlag(flagged, 7);
     assert.equal(cleared.cells[7].flagged, false);
-    assert.equal(cleared.cells[7].questioned, false);
     assert.equal(cleared.flaggedCount, 0);
-  });
-
-  void it('allows a questioned cell to be revealed', () => {
-    const questioned = cycleCellMark(cycleCellMark(createGame(), 225), 225);
-    const revealed = revealCell(questioned, 225, fixedRandom);
-    assert.equal(revealed.cells[225].open, true);
-    assert.equal(revealed.cells[225].questioned, false);
+    assert.equal(minesRemaining(cleared), 99);
   });
 
   void it('reveals every mine and marks the detonated cell on loss', () => {
-    const started = revealCell(createGame(), 225, fixedRandom);
+    const started = revealCell(createGame(), 225, seededRandom());
     const mineIndex = started.cells.findIndex((cell) => cell.mine);
     const lost = revealCell(started, mineIndex);
     assert.equal(lost.status, 'lost');
@@ -88,7 +80,7 @@ void describe('AyayaMiner engine', () => {
   });
 
   void it('wins when every safe cell is open', () => {
-    let game = revealCell(createGame(4, 4, 1), 0, fixedRandom);
+    let game = revealCell(createGame(4, 4, 1), 0, seededRandom());
     for (
       let index = 0;
       index < game.cells.length && game.status !== 'won';

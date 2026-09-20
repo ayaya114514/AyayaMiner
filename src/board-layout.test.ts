@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  canFitBoardArea,
   calculateBoardLayout,
   CELL_GAP,
   COMPACT_CELL_SIZE,
@@ -42,5 +43,14 @@ void describe('responsive board layout', () => {
   void it('rejects invalid board measurements', () => {
     assert.throws(() => calculateBoardLayout(0, 100, DESKTOP_CELL_SIZE));
     assert.throws(() => calculateBoardLayout(100, 100, Number.NaN));
+  });
+
+  void it('ignores transient board areas that are too small to play', () => {
+    assert.equal(canFitBoardArea(370, 782, COMPACT_CELL_SIZE), true);
+    assert.equal(canFitBoardArea(370, 0, COMPACT_CELL_SIZE), false);
+    assert.equal(canFitBoardArea(370, 44, COMPACT_CELL_SIZE), false);
+    assert.equal(canFitBoardArea(370, 68, COMPACT_CELL_SIZE), false);
+    assert.equal(canFitBoardArea(370, 91, COMPACT_CELL_SIZE), true);
+    assert.equal(canFitBoardArea(Number.NaN, 782, COMPACT_CELL_SIZE), false);
   });
 });

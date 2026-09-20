@@ -6,9 +6,10 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from 'react';
-import { Bomb, Flag, RotateCcw } from 'lucide-react';
+import { Bomb, Flag, MousePointer2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  canFitBoardArea,
   calculateBoardLayout,
   COMPACT_CELL_SIZE,
   DESKTOP_CELL_SIZE,
@@ -16,14 +17,15 @@ import {
 } from '@/src/board-layout';
 import {
   createGame,
-  cycleCellMark,
   minesRemaining,
   revealCell,
+  toggleFlag,
   type Cell,
 } from '@/src/engine';
 
 const LONG_PRESS_MS = 430;
 const COMPACT_BOARD_QUERY = '(orientation: portrait) and (max-width: 720px)';
+type InputMode = 'reveal' | 'flag';
 
 function gameFromLayout(layout: BoardLayout) {
   return createGame(layout.rows, layout.columns, layout.mineCount);
@@ -49,7 +51,6 @@ function cellLabel(cell: Cell, index: number) {
   if (cell.exploded) return `第 ${index + 1} 格，触发的地雷`;
   if (cell.open && cell.mine) return `第 ${index + 1} 格，地雷`;
   if (cell.flagged) return `第 ${index + 1} 格，已标记`;
-  if (cell.questioned) return `第 ${index + 1} 格，问号标记`;
   if (cell.open && cell.adjacent === 0) return `第 ${index + 1} 格，安全空白`;
   if (cell.open) return `第 ${index + 1} 格，周围有 ${cell.adjacent} 个地雷`;
   return `第 ${index + 1} 格，未翻开`;
@@ -58,6 +59,8 @@ function cellLabel(cell: Cell, index: number) {
 export default function Home() {
   const [game, setGame] = useState(initialGame);
   const [elapsed, setElapsed] = useState(0);
+  const [inputMode, setInputMode] = useState<InputMode>('reveal');
+  const gameRoot = useRef<HTMLElement>(null);
   const boardArea = useRef<HTMLElement>(null);
   const layout = useRef<BoardLayout>({
     rows: game.rows,
@@ -81,13 +84,36 @@ export default function Home() {
 
   useEffect(() => {
     const element = boardArea.current;
-    if (!element) return;
+    const root = gameRoot.current;
+    if (!element || !root) return;
+
+    let suspended = document.visibilityState !== 'visible';
+    let syncFrame: number | null = null;
 
     const syncBoardToArea = () => {
+      syncFrame = null;
+      if (suspended || document.visibilityState !== 'visible') return;
+
       const cellSize =
         Number.parseFloat(
           window.getComputedStyle(element).getPropertyValue('--cell-size'),
         ) || DESKTOP_CELL_SIZE;
+      if (
+        !canFitBoardArea(
+          window.innerWidth - 20,
+          window.innerHeight - 62,
+          cellSize,
+        )
+      ) {
+        return;
+      }
+
+      root.style.setProperty('--app-height', `${window.innerHeight}px`);
+      if (
+        !canFitBoardArea(element.clientWidth, element.clientHeight, cellSize)
+      ) {
+        return;
+      }
       const nextLayout = calculateBoardLayout(
         element.clientWidth,
         element.clientHeight,
@@ -110,10 +136,51 @@ export default function Home() {
       setGame(gameFromLayout(nextLayout));
     };
 
-    const resizeObserver = new ResizeObserver(syncBoardToArea);
+    const scheduleBoardSync = () => {
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+      syncFrame = window.requestAnimationFrame(() => {
+        syncFrame = window.requestAnimationFrame(syncBoardToArea);
+      });
+    };
+
+    const suspendBoardSync = () => {
+      suspended = true;
+      if (syncFrame !== null) {
+        window.cancelAnimationFrame(syncFrame);
+        syncFrame = null;
+      }
+      stopLongPressTimer();
+      longPress.current.suppressedIndex = null;
+    };
+
+    const resumeBoardSync = () => {
+      suspended = document.visibilityState !== 'visible';
+      if (!suspended) scheduleBoardSync();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resumeBoardSync();
+      else suspendBoardSync();
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleBoardSync);
     resizeObserver.observe(element);
-    syncBoardToArea();
-    return () => resizeObserver.disconnect();
+    window.addEventListener('resize', scheduleBoardSync);
+    window.addEventListener('pagehide', suspendBoardSync);
+    window.addEventListener('pageshow', resumeBoardSync);
+    window.visualViewport?.addEventListener('resize', scheduleBoardSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    scheduleBoardSync();
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', scheduleBoardSync);
+      window.removeEventListener('pagehide', suspendBoardSync);
+      window.removeEventListener('pageshow', resumeBoardSync);
+      window.visualViewport?.removeEventListener('resize', scheduleBoardSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (syncFrame !== null) window.cancelAnimationFrame(syncFrame);
+    };
   }, [stopLongPressTimer]);
 
   useEffect(() => {
@@ -140,11 +207,6 @@ export default function Home() {
 
   const openCell = useCallback(
     (index: number) => {
-      if (longPress.current.suppressedIndex === index) {
-        longPress.current.suppressedIndex = null;
-        return;
-      }
-
       const wasReady = game.status === 'ready';
       const nextGame = revealCell(game, index);
       if (nextGame === game) return;
@@ -164,8 +226,17 @@ export default function Home() {
   );
 
   const markCell = useCallback((index: number) => {
-    setGame((current) => cycleCellMark(current, index));
+    setGame((current) => toggleFlag(current, index));
   }, []);
+
+  const handleCellClick = (index: number) => {
+    if (longPress.current.suppressedIndex === index) {
+      longPress.current.suppressedIndex = null;
+      return;
+    }
+    if (inputMode === 'flag') markCell(index);
+    else openCell(index);
+  };
 
   const reset = useCallback(() => {
     stopLongPressTimer();
@@ -196,7 +267,7 @@ export default function Home() {
   const isComplete = game.status === 'won' || game.status === 'lost';
 
   return (
-    <main className="game">
+    <main ref={gameRoot} className="game">
       <header>
         <h1>AyayaMiner</h1>
         <div className="controls" aria-label="游戏状态">
@@ -210,6 +281,25 @@ export default function Home() {
               <dd>{formatCounter(elapsed)}</dd>
             </div>
           </dl>
+          <Button
+            className={`mode-toggle ${inputMode === 'flag' ? 'active' : ''}`}
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setInputMode((current) =>
+                current === 'reveal' ? 'flag' : 'reveal',
+              )
+            }
+            aria-label={`当前为${inputMode === 'reveal' ? '翻开' : '插旗'}模式，点击切换为${inputMode === 'reveal' ? '插旗' : '翻开'}模式`}
+            aria-pressed={inputMode === 'flag'}
+          >
+            {inputMode === 'reveal' ? (
+              <MousePointer2 aria-hidden="true" />
+            ) : (
+              <Flag aria-hidden="true" fill="currentColor" />
+            )}
+            {inputMode === 'reveal' ? '翻开' : '插旗'}
+          </Button>
           <Button
             className="reset"
             variant="outline"
@@ -225,6 +315,7 @@ export default function Home() {
       <section ref={boardArea} className="board-area" aria-label="扫雷棋盘">
         <div
           className="board"
+          data-input-mode={inputMode}
           aria-label={`${game.columns} 列 ${game.rows} 行，${game.mineCount} 个地雷`}
           style={boardStyle}
         >
@@ -235,7 +326,6 @@ export default function Home() {
               'cell',
               cell.open ? 'open' : '',
               cell.flagged ? 'flagged' : '',
-              cell.questioned ? 'questioned' : '',
               cell.open && cell.mine ? 'mine' : '',
               cell.exploded ? 'exploded' : '',
               wrongFlag ? 'wrong' : '',
@@ -252,11 +342,9 @@ export default function Home() {
                 key={index}
                 type="button"
                 aria-label={cellLabel(cell, index)}
-                aria-pressed={
-                  cell.flagged ? true : cell.questioned ? 'mixed' : false
-                }
+                aria-pressed={cell.flagged}
                 disabled={isComplete}
-                onClick={() => openCell(index)}
+                onClick={() => handleCellClick(index)}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   markCell(index);
@@ -273,9 +361,6 @@ export default function Home() {
               >
                 {cell.flagged && !cell.open && !wrongFlag && (
                   <Flag aria-hidden="true" fill="currentColor" />
-                )}
-                {cell.questioned && !cell.open && (
-                  <span aria-hidden="true">?</span>
                 )}
                 {wrongFlag && <span aria-hidden="true">×</span>}
                 {cell.open && cell.mine && <Bomb aria-hidden="true" />}

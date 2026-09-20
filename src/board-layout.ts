@@ -9,6 +9,26 @@ export type BoardLayout = {
   mineCount: number;
 };
 
+export function canFitBoardArea(
+  availableWidth: number,
+  availableHeight: number,
+  cellSize: number,
+): boolean {
+  if (
+    !Number.isFinite(availableWidth) ||
+    !Number.isFinite(availableHeight) ||
+    !Number.isFinite(cellSize) ||
+    cellSize <= 0
+  ) {
+    return false;
+  }
+
+  const minimumBoardSize = cellSize * 4 + CELL_GAP * 3;
+  return (
+    availableWidth >= minimumBoardSize && availableHeight >= minimumBoardSize
+  );
+}
+
 export function calculateBoardLayout(
   availableWidth: number,
   availableHeight: number,

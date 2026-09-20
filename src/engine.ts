@@ -1,3 +1,5 @@
+import { generateNoGuessLayout, type RandomSource } from './no-guess.ts';
+
 export type GameStatus = 'ready' | 'playing' | 'won' | 'lost';
 
 export type Cell = {
@@ -5,7 +7,6 @@ export type Cell = {
   adjacent: number;
   open: boolean;
   flagged: boolean;
-  questioned: boolean;
   exploded: boolean;
 };
 
@@ -19,8 +20,6 @@ export type GameState = {
   flaggedCount: number;
 };
 
-type RandomSource = () => number;
-
 export const EXPERT_MINES = 99;
 
 const emptyCell = (): Cell => ({
@@ -28,7 +27,6 @@ const emptyCell = (): Cell => ({
   adjacent: 0,
   open: false,
   flagged: false,
-  questioned: false,
   exploded: false,
 });
 
@@ -87,37 +85,17 @@ export function placeMines(
 ): GameState {
   if (game.status !== 'ready') return game;
 
-  const protectedArea = new Set([
+  const layout = generateNoGuessLayout(
+    game.rows,
+    game.columns,
+    game.mineCount,
     firstIndex,
-    ...neighborsOf(firstIndex, game.rows, game.columns),
-  ]);
-  let candidates = game.cells
-    .map((_, index) => index)
-    .filter((index) => !protectedArea.has(index));
-
-  if (candidates.length < game.mineCount) {
-    candidates = game.cells
-      .map((_, index) => index)
-      .filter((index) => index !== firstIndex);
-  }
-
-  for (let index = candidates.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(random() * (index + 1));
-    [candidates[index], candidates[target]] = [
-      candidates[target],
-      candidates[index],
-    ];
-  }
-
-  const mineIndexes = new Set(candidates.slice(0, game.mineCount));
+    random,
+  );
   const cells = game.cells.map((cell, index) => ({
     ...cell,
-    mine: mineIndexes.has(index),
-    adjacent: mineIndexes.has(index)
-      ? 0
-      : neighborsOf(index, game.rows, game.columns).filter((neighbor) =>
-          mineIndexes.has(neighbor),
-        ).length,
+    mine: Boolean(layout.mines[index]),
+    adjacent: layout.adjacent[index],
   }));
 
   return { ...game, cells, status: 'playing' };
@@ -135,7 +113,6 @@ function openSafeArea(game: GameState, startIndexes: number[]): GameState {
     if (cell.open || cell.flagged || cell.mine) continue;
 
     cell.open = true;
-    cell.questioned = false;
     openedCount += 1;
 
     if (cell.adjacent === 0) {
@@ -157,10 +134,7 @@ function openSafeArea(game: GameState, startIndexes: number[]): GameState {
   const hasWon = openedCount === cells.length - game.mineCount;
   if (hasWon) {
     for (const cell of cells) {
-      if (cell.mine) {
-        cell.flagged = true;
-        cell.questioned = false;
-      }
+      if (cell.mine) cell.flagged = true;
     }
   }
 
@@ -220,26 +194,23 @@ export function revealCell(
   return openSafeArea(game, [index]);
 }
 
-export function cycleCellMark(game: GameState, index: number): GameState {
+export function toggleFlag(game: GameState, index: number): GameState {
   if (index < 0 || index >= game.cells.length) return game;
   if (game.status === 'won' || game.status === 'lost' || game.cells[index].open)
     return game;
 
   const cell = game.cells[index];
-  if (!cell.flagged && !cell.questioned && game.flaggedCount >= game.mineCount)
-    return game;
-
-  const flagged = !cell.flagged && !cell.questioned;
-  const questioned = cell.flagged;
+  if (!cell.flagged && game.flaggedCount >= game.mineCount) return game;
+  const flagged = !cell.flagged;
 
   const cells = game.cells.map((cell, cellIndex) =>
-    cellIndex === index ? { ...cell, flagged, questioned } : cell,
+    cellIndex === index ? { ...cell, flagged } : cell,
   );
 
   return {
     ...game,
     cells,
-    flaggedCount: game.flaggedCount + (flagged ? 1 : cell.flagged ? -1 : 0),
+    flaggedCount: game.flaggedCount + (flagged ? 1 : -1),
   };
 }
 
