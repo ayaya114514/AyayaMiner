@@ -1,36 +1,8 @@
-@import 'tailwindcss' source(none);
-@source './page.tsx';
-@source '../components/ui/button.tsx';
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-lg: var(--radius);
-}
-
 :root {
   color-scheme: dark;
   --background: #101010;
   --foreground: #eeeeec;
-  --primary: #eeeeec;
-  --primary-foreground: #101010;
-  --secondary: #1b1b1b;
-  --secondary-foreground: #eeeeec;
-  --muted: #181818;
-  --muted-foreground: #777775;
-  --border: #343434;
-  --input: #343434;
-  --ring: #a5a5a1;
-  --radius: 0.25rem;
+  --label: #8e8e8a;
   font-family:
     Inter,
     ui-sans-serif,
@@ -41,6 +13,8 @@
     sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 * {
@@ -123,8 +97,8 @@ h1 {
 }
 
 .controls dt {
-  color: #777775;
-  font-size: 10px;
+  color: var(--label);
+  font-size: 11px;
 }
 
 .controls dd {
@@ -135,59 +109,71 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.tool {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #3d3d3d;
+  border-radius: 3px;
+  background: transparent;
+  color: #c8c7c2;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+
+.tool:hover {
+  background: #242424;
+  color: #eeeeec;
+}
+
+.tool:active {
+  transform: translateY(1px);
+}
+
+.tool:focus-visible {
+  outline: 2px solid #a5a5a1;
+  outline-offset: 2px;
+}
+
+.tool svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
 .reset {
-  width: 30px !important;
-  height: 30px !important;
-  border-color: #343434 !important;
-  border-radius: 3px !important;
-  background: transparent !important;
-  color: #b8b8b4 !important;
-}
-
-.reset:hover {
-  background: #1d1d1d !important;
-  color: #eeeeec !important;
-}
-
-.reset svg {
-  width: 13px !important;
-  height: 13px !important;
-}
-
-.mode-toggle {
-  height: 30px !important;
-  padding: 0 8px !important;
-  gap: 5px !important;
-  border-color: #3d3d3d !important;
-  border-radius: 3px !important;
-  background: transparent !important;
-  color: #c8c7c2 !important;
-  font-size: 11px !important;
-}
-
-.mode-toggle:hover {
-  background: #242424 !important;
-  color: #eeeeec !important;
+  width: 30px;
+  padding: 0;
+  color: #b8b8b4;
 }
 
 .mode-toggle.active {
-  border-color: #72443f !important;
-  background: #2a1c1b !important;
-  color: #eb7d72 !important;
-}
-
-.mode-toggle svg {
-  width: 13px !important;
-  height: 13px !important;
+  border-color: #72443f;
+  background: #2a1c1b;
+  color: #eb7d72;
 }
 
 .board-area {
   --cell-size: 27px;
   position: relative;
-  display: grid;
   min-height: 0;
   overflow: hidden;
-  place-items: center;
+}
+
+/* A board kept through a resize may be larger than the area: scroll it.
+   Auto margins centre it without clipping the overflowing start edge. */
+.board-scroll {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .board {
@@ -196,6 +182,7 @@ h1 {
   gap: 1px;
   width: max-content;
   height: max-content;
+  margin: auto;
   background: #505050;
 }
 
@@ -246,7 +233,7 @@ h1 {
   background: #101010;
   box-shadow: none;
   font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: clamp(10px, 2.6vmin, 14px);
+  font-size: calc(var(--cell-size) * 0.55);
   font-weight: 700;
 }
 
@@ -301,18 +288,31 @@ h1 {
   color: #a5a5a1;
 }
 
-.result {
+.result-layer {
   position: absolute;
   z-index: 2;
-  top: 50%;
-  left: 50%;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.result-backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.result {
+  position: relative;
   width: 180px;
   padding: 18px;
   border: 1px solid #343434;
   border-radius: 4px;
   background: #151515;
   text-align: center;
-  transform: translate(-50%, -50%);
 }
 
 .result h2 {
@@ -323,24 +323,14 @@ h1 {
 
 .result p {
   margin: 5px 0 16px;
-  color: #777775;
+  color: var(--label);
   font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .again {
-  height: 30px !important;
-  padding: 0 10px !important;
-  border-color: #343434 !important;
-  border-radius: 3px !important;
-  background: transparent !important;
-  color: #d2d2cf !important;
-  font-size: 11px !important;
-}
-
-.again:hover {
-  background: #222 !important;
-  color: #fff !important;
+  padding: 0 10px;
+  color: #d2d2cf;
 }
 
 @media (orientation: portrait) and (max-width: 720px) {
@@ -358,16 +348,7 @@ h1 {
     gap: 9px;
   }
 
-  .controls dt {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
   .controls dl > div {
-    gap: 0;
+    gap: 3px;
   }
 }

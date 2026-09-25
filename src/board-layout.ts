@@ -2,6 +2,9 @@ export const CELL_GAP = 1;
 export const DESKTOP_CELL_SIZE = 27;
 export const COMPACT_CELL_SIZE = 22;
 export const HARD_MINE_DENSITY = 0.25;
+// Generating a no-guess board blocks the first click; beyond ~1080p-sized
+// boards that pause becomes noticeable, so very large viewports stop filling.
+export const MAX_BOARD_CELLS = 2500;
 
 export type BoardLayout = {
   rows: number;
@@ -46,8 +49,13 @@ export function calculateBoardLayout(
   }
 
   const pitch = cellSize + CELL_GAP;
-  const columns = Math.max(2, Math.floor((availableWidth + CELL_GAP) / pitch));
-  const rows = Math.max(2, Math.floor((availableHeight + CELL_GAP) / pitch));
+  let columns = Math.max(2, Math.floor((availableWidth + CELL_GAP) / pitch));
+  let rows = Math.max(2, Math.floor((availableHeight + CELL_GAP) / pitch));
+  if (rows * columns > MAX_BOARD_CELLS) {
+    const scale = Math.sqrt(MAX_BOARD_CELLS / (rows * columns));
+    rows = Math.max(2, Math.floor(rows * scale));
+    columns = Math.min(columns, Math.floor(MAX_BOARD_CELLS / rows));
+  }
   const cellCount = rows * columns;
   const mineCount = Math.max(
     1,

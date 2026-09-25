@@ -7,6 +7,7 @@ import {
   COMPACT_CELL_SIZE,
   DESKTOP_CELL_SIZE,
   HARD_MINE_DENSITY,
+  MAX_BOARD_CELLS,
 } from './board-layout.ts';
 
 function renderedSize(trackCount: number, cellSize: number) {
@@ -38,6 +39,23 @@ void describe('responsive board layout', () => {
     assert.deepEqual(layout, { rows: 34, columns: 16, mineCount: 136 });
     assert.ok(renderedSize(layout.columns, COMPACT_CELL_SIZE) <= 370);
     assert.ok(renderedSize(layout.rows, COMPACT_CELL_SIZE) <= 782);
+  });
+
+  void it('caps very large viewports while keeping their aspect ratio', () => {
+    const layout = calculateBoardLayout(3820, 2098, DESKTOP_CELL_SIZE);
+
+    assert.ok(layout.rows * layout.columns <= MAX_BOARD_CELLS);
+    assert.ok(layout.rows * layout.columns > MAX_BOARD_CELLS * 0.95);
+    assert.ok(layout.columns > layout.rows);
+    assert.equal(
+      layout.mineCount,
+      Math.round(layout.rows * layout.columns * HARD_MINE_DENSITY),
+    );
+  });
+
+  void it('leaves a 1080p board area uncapped', () => {
+    const layout = calculateBoardLayout(1900, 1018, DESKTOP_CELL_SIZE);
+    assert.deepEqual(layout, { rows: 36, columns: 67, mineCount: 603 });
   });
 
   void it('rejects invalid board measurements', () => {
