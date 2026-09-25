@@ -24,8 +24,6 @@
   "include": [
     "app/**/*.ts",
     "app/**/*.tsx",
-    "components/ui/button.tsx",
-    "lib/utils.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "vite.config.ts"

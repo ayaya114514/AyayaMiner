@@ -107,8 +107,8 @@ function openSafeArea(game: GameState, startIndexes: number[]): GameState {
   const queued = new Set(queue);
   let openedCount = game.openedCount;
 
-  while (queue.length > 0) {
-    const index = queue.shift()!;
+  for (let head = 0; head < queue.length; head += 1) {
+    const index = queue[head];
     const cell = cells[index];
     if (cell.open || cell.flagged || cell.mine) continue;
 
@@ -151,9 +151,11 @@ function loseGame(game: GameState, explodedIndex: number): GameState {
   return {
     ...game,
     status: 'lost',
+    // Correctly flagged mines stay covered so the player can see which flags
+    // were right; every other mine is revealed.
     cells: game.cells.map((cell, index) => ({
       ...cell,
-      open: cell.mine || cell.open,
+      open: (cell.mine && !cell.flagged) || cell.open,
       exploded: index === explodedIndex,
     })),
   };
@@ -199,9 +201,7 @@ export function toggleFlag(game: GameState, index: number): GameState {
   if (game.status === 'won' || game.status === 'lost' || game.cells[index].open)
     return game;
 
-  const cell = game.cells[index];
-  if (!cell.flagged && game.flaggedCount >= game.mineCount) return game;
-  const flagged = !cell.flagged;
+  const flagged = !game.cells[index].flagged;
 
   const cells = game.cells.map((cell, cellIndex) =>
     cellIndex === index ? { ...cell, flagged } : cell,

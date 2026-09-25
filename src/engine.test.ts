@@ -79,6 +79,50 @@ void describe('AyayaMiner engine', () => {
     );
   });
 
+  void it('keeps correct flags covered and marks the rest on loss', () => {
+    const started = revealCell(createGame(), 225, seededRandom());
+    const mines = started.cells
+      .map((cell, index) => (cell.mine && !cell.open ? index : -1))
+      .filter((index) => index >= 0);
+    const flagged = toggleFlag(started, mines[0]);
+    const lost = revealCell(flagged, mines[1]);
+
+    assert.equal(lost.status, 'lost');
+    assert.equal(lost.cells[mines[0]].open, false);
+    assert.equal(lost.cells[mines[0]].flagged, true);
+    assert.equal(lost.cells[mines[1]].open, true);
+  });
+
+  void it('loses when chording around a wrong flag', () => {
+    const started = revealCell(createGame(), 225, seededRandom());
+    const numbered = started.cells.findIndex(
+      (cell, index) =>
+        cell.open &&
+        cell.adjacent === 1 &&
+        neighborsOf(index, started.rows, started.columns).some(
+          (neighbor) =>
+            !started.cells[neighbor].open && !started.cells[neighbor].mine,
+        ),
+    );
+    const neighbors = neighborsOf(numbered, started.rows, started.columns);
+    const wrong = neighbors.find(
+      (neighbor) =>
+        !started.cells[neighbor].open && !started.cells[neighbor].mine,
+    )!;
+    const mine = neighbors.find((neighbor) => started.cells[neighbor].mine)!;
+
+    const lost = revealCell(toggleFlag(started, wrong), numbered);
+    assert.equal(lost.status, 'lost');
+    assert.equal(lost.cells[mine].exploded, true);
+  });
+
+  void it('allows more flags than mines and reports a negative count', () => {
+    let game = createGame(4, 4, 1);
+    for (const index of [0, 1, 2]) game = toggleFlag(game, index);
+    assert.equal(game.flaggedCount, 3);
+    assert.equal(minesRemaining(game), -2);
+  });
+
   void it('wins when every safe cell is open', () => {
     let game = revealCell(createGame(4, 4, 1), 0, seededRandom());
     for (

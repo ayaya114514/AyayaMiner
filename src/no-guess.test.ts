@@ -61,6 +61,30 @@ void describe('no-guess generator', () => {
     );
   });
 
+  void it('rejects impossible boards instead of looping', () => {
+    assert.throws(() => generateNoGuessLayout(4, 4, 16, 0), /Invalid/);
+    assert.throws(() => generateNoGuessLayout(4, 4, 4, 16), /Invalid/);
+  });
+
+  void it('generates the largest capped board', () => {
+    const rows = 37;
+    const columns = 67;
+    const mineCount = 620;
+    const firstIndex = 1200;
+    const layout = generateNoGuessLayout(
+      rows,
+      columns,
+      mineCount,
+      firstIndex,
+      seededRandom(3),
+    );
+
+    assert.equal(
+      isSolvableWithoutGuessing(layout, rows, columns, mineCount, firstIndex),
+      true,
+    );
+  });
+
   void it('keeps an edge first click solvable on the mobile layout', () => {
     const rows = 16;
     const columns = 34;

@@ -128,6 +128,9 @@ function solveLayout(
 ): SolverResult {
   const open = new Uint8Array(layout.mines.length);
   const knownMines = new Uint8Array(layout.mines.length);
+  // Open cells that may still border unknown cells. Cells whose neighbours are
+  // all resolved never yield new constraints, so they are dropped for good.
+  let active: number[] = [];
   let openedCount = 0;
   let knownMineCount = 0;
   let latestConstraints: Constraint[] = [];
@@ -135,12 +138,13 @@ function solveLayout(
   const reveal = (startIndexes: number[]): boolean => {
     const queue = [...startIndexes];
     const queued = new Set(queue);
-    while (queue.length > 0) {
-      const index = queue.shift()!;
+    for (let head = 0; head < queue.length; head += 1) {
+      const index = queue[head];
       if (open[index] || knownMines[index]) continue;
       if (layout.mines[index]) return false;
       open[index] = 1;
       openedCount += 1;
+      active.push(index);
       if (layout.adjacent[index] !== 0) continue;
       for (const neighbor of neighbors[index]) {
         if (!open[neighbor] && !knownMines[neighbor] && !queued.has(neighbor)) {
@@ -164,10 +168,11 @@ function solveLayout(
 
   while (openedCount < layout.mines.length - mineCount) {
     const constraintMap = new Map<string, Constraint>();
+    const stillActive: number[] = [];
     let contradiction = false;
 
-    for (let index = 0; index < open.length; index += 1) {
-      if (!open[index]) continue;
+    active.sort((a, b) => a - b);
+    for (const index of active) {
       const unknown: number[] = [];
       let adjacentKnownMines = 0;
       for (const neighbor of neighbors[index]) {
@@ -181,6 +186,7 @@ function solveLayout(
         }
         continue;
       }
+      stillActive.push(index);
 
       unknown.sort((a, b) => a - b);
       const remainingMines = layout.adjacent[index] - adjacentKnownMines;
@@ -197,6 +203,7 @@ function solveLayout(
       constraintMap.set(key, { cells: unknown, mines: remainingMines });
     }
 
+    active = stillActive;
     latestConstraints = [...constraintMap.values()];
     if (contradiction) {
       return {
@@ -218,11 +225,19 @@ function solveLayout(
       }
     }
 
-    for (let left = 0; left < latestConstraints.length; left += 1) {
-      const subset = latestConstraints[left];
-      for (let right = 0; right < latestConstraints.length; right += 1) {
-        if (left === right) continue;
-        const superset = latestConstraints[right];
+    // A superset must contain the subset's first cell, so only compare
+    // constraints that share it instead of every pair.
+    const constraintsByCell = new Map<number, Constraint[]>();
+    for (const constraint of latestConstraints) {
+      for (const index of constraint.cells) {
+        const bucket = constraintsByCell.get(index);
+        if (bucket) bucket.push(constraint);
+        else constraintsByCell.set(index, [constraint]);
+      }
+    }
+
+    for (const subset of latestConstraints) {
+      for (const superset of constraintsByCell.get(subset.cells[0]) ?? []) {
         if (
           subset.cells.length >= superset.cells.length ||
           !isSubset(subset.cells, superset.cells)
@@ -239,15 +254,13 @@ function solveLayout(
       }
     }
 
-    const unknown: number[] = [];
-    for (let index = 0; index < open.length; index += 1) {
-      if (!open[index] && !knownMines[index]) unknown.push(index);
-    }
+    const unknownCount = open.length - openedCount - knownMineCount;
     const remainingGlobalMines = mineCount - knownMineCount;
-    if (remainingGlobalMines === 0) {
-      for (const index of unknown) safeMoves.add(index);
-    } else if (remainingGlobalMines === unknown.length) {
-      for (const index of unknown) mineMoves.add(index);
+    if (remainingGlobalMines === 0 || remainingGlobalMines === unknownCount) {
+      const globalMoves = remainingGlobalMines === 0 ? safeMoves : mineMoves;
+      for (let index = 0; index < open.length; index += 1) {
+        if (!open[index] && !knownMines[index]) globalMoves.add(index);
+      }
     }
 
     let madeProgress = false;
