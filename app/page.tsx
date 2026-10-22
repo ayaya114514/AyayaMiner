@@ -1,10 +1,12 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
 } from 'react';
 import { Bomb, Flag, MousePointer2, RotateCcw } from 'lucide-react';
@@ -20,7 +22,6 @@ import {
   minesRemaining,
   revealCell,
   toggleFlag,
-  type Cell,
   type GameState,
 } from '@/src/engine';
 
@@ -72,13 +73,94 @@ function elapsedSince(startedAt: number) {
   return Math.floor((Date.now() - startedAt) / 1000);
 }
 
-function cellLabel(cell: Cell, index: number) {
-  if (cell.exploded) return `第 ${index + 1} 格，触发的地雷`;
-  if (cell.open && cell.mine) return `第 ${index + 1} 格，地雷`;
-  if (cell.flagged) return `第 ${index + 1} 格，已标记`;
-  if (cell.open && cell.adjacent === 0) return `第 ${index + 1} 格，安全空白`;
-  if (cell.open) return `第 ${index + 1} 格，周围有 ${cell.adjacent} 个地雷`;
-  return `第 ${index + 1} 格，未翻开`;
+type CellProps = {
+  index: number;
+  mine: boolean;
+  adjacent: number;
+  open: boolean;
+  flagged: boolean;
+  exploded: boolean;
+  wrongFlag: boolean;
+  tabStop: boolean;
+  disabled: boolean;
+};
+
+function cellLabel(cell: CellProps) {
+  const position = `第 ${cell.index + 1} 格`;
+  if (cell.exploded) return `${position}，触发的地雷`;
+  if (cell.open && cell.mine) return `${position}，地雷`;
+  if (cell.flagged) return `${position}，已标记`;
+  if (cell.open && cell.adjacent === 0) return `${position}，安全空白`;
+  if (cell.open) return `${position}，周围有 ${cell.adjacent} 个地雷`;
+  return `${position}，未翻开`;
+}
+
+// The engine copies every cell on each move, so cells take primitive props:
+// only the cells that actually changed re-render. Input is delegated to the
+// board, so no per-cell handlers break the memo either.
+const CellButton = memo(function CellButton(props: CellProps) {
+  const { index, mine, adjacent, open, flagged, exploded, wrongFlag } = props;
+  const className = [
+    'cell',
+    open ? 'open' : '',
+    flagged ? 'flagged' : '',
+    open && mine ? 'mine' : '',
+    exploded ? 'exploded' : '',
+    wrongFlag ? 'wrong' : '',
+    open && !mine && adjacent > 0 ? `number n${adjacent}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <button
+      className={className}
+      type="button"
+      data-index={index}
+      tabIndex={props.tabStop ? 0 : -1}
+      aria-label={cellLabel(props)}
+      aria-pressed={flagged}
+      disabled={props.disabled}
+    >
+      {flagged && !open && !wrongFlag && (
+        <Flag aria-hidden="true" fill="currentColor" />
+      )}
+      {wrongFlag && <span aria-hidden="true">×</span>}
+      {open && mine && <Bomb aria-hidden="true" />}
+      {open && !mine && adjacent > 0 && adjacent}
+    </button>
+  );
+});
+
+// Ticks on its own so the board does not re-render four times a second.
+function Clock({
+  startedAt,
+  running,
+  value,
+}: {
+  startedAt: number | null;
+  running: boolean;
+  value: number;
+}) {
+  const [now, setNow] = useState(value);
+
+  useEffect(() => {
+    if (!running || startedAt === null) return;
+    const update = () => setNow(elapsedSince(startedAt));
+    update();
+    const interval = window.setInterval(update, 250);
+    return () => window.clearInterval(interval);
+  }, [running, startedAt]);
+
+  return <dd>{formatElapsed(running ? now : value)}</dd>;
+}
+
+function cellIndexOf(target: EventTarget) {
+  if (!(target instanceof Element)) return null;
+  const button = target.closest<HTMLButtonElement>('button.cell');
+  if (!button || button.disabled) return null;
+  const index = Number(button.dataset.index);
+  return Number.isInteger(index) ? { button, index } : null;
 }
 
 export default function Home() {
@@ -97,6 +179,7 @@ export default function Home() {
     mineCount: game.mineCount,
   });
   const startedAt = useRef<number | null>(null);
+  const [clockStart, setClockStart] = useState<number | null>(null);
   const longPress = useRef<{
     timer: number | null;
     suppressedIndex: number | null;
@@ -215,18 +298,6 @@ export default function Home() {
     };
   }, [stopLongPressTimer]);
 
-  useEffect(() => {
-    if (game.status !== 'playing' || startedAt.current === null) return;
-
-    const updateTimer = () => {
-      if (startedAt.current === null) return;
-      setElapsed(elapsedSince(startedAt.current));
-    };
-    updateTimer();
-    const interval = window.setInterval(updateTimer, 250);
-    return () => window.clearInterval(interval);
-  }, [game.status]);
-
   const isComplete = game.status === 'won' || game.status === 'lost';
   const showResult = isComplete && !resultDismissed;
 
@@ -254,6 +325,7 @@ export default function Home() {
 
       if (wasReady && nextGame.status !== 'ready') {
         startedAt.current = Date.now();
+        setClockStart(startedAt.current);
         setElapsed(0);
       }
       if (
@@ -283,7 +355,10 @@ export default function Home() {
     [markCell, stopLongPressTimer],
   );
 
-  const handleCellClick = (index: number) => {
+  const handleCellClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = cellIndexOf(event.target);
+    if (!target) return;
+    const { index } = target;
     if (longPress.current.suppressedIndex === index) {
       longPress.current.suppressedIndex = null;
       return;
@@ -293,7 +368,11 @@ export default function Home() {
     else openCell(index);
   };
 
-  const handleContextMenu = (index: number) => {
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    const target = cellIndexOf(event.target);
+    if (!target) return;
+    event.preventDefault();
+    const { index } = target;
     // Android fires contextmenu on a touch long press as well; let it finish
     // the pending long press instead of toggling the flag a second time.
     if (longPress.current.timer !== null) completeLongPress(index);
@@ -303,31 +382,32 @@ export default function Home() {
   const reset = useCallback(() => {
     stopLongPressTimer();
     startedAt.current = null;
+    setClockStart(null);
     longPress.current.suppressedIndex = null;
     setElapsed(0);
     setResultDismissed(false);
     setGame(gameFromLayout(layout.current));
   }, [stopLongPressTimer]);
 
-  const handlePointerDown = (
-    event: PointerEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const target = cellIndexOf(event.target);
+    if (!target) return;
+    const { button, index } = target;
     // A long press that never produced a click must not swallow a later tap.
     longPress.current.suppressedIndex = null;
     if (event.pointerType === 'mouse') return;
     stopLongPressTimer();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    button.setPointerCapture(event.pointerId);
     longPress.current.timer = window.setTimeout(
       () => completeLongPress(index),
       LONG_PRESS_MS,
     );
   };
 
-  const handleCellKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
+  const handleCellKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const cell = cellIndexOf(event.target);
+    if (!cell) return;
+    const { index } = cell;
     if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
       markCell(index);
@@ -372,7 +452,11 @@ export default function Home() {
             </div>
             <div>
               <dt>时间</dt>
-              <dd>{formatElapsed(elapsed)}</dd>
+              <Clock
+                startedAt={clockStart}
+                running={game.status === 'playing'}
+                value={elapsed}
+              />
             </div>
           </dl>
           <button
@@ -412,58 +496,32 @@ export default function Home() {
         <div className="board-scroll">
           <div
             ref={board}
+            // Only delegates the cells' input; the buttons stay the controls.
+            role="presentation"
             className="board"
             data-input-mode={inputMode}
             style={boardStyle}
+            onClick={handleCellClick}
+            onContextMenu={handleContextMenu}
+            onKeyDown={handleCellKeyDown}
+            onPointerDown={handlePointerDown}
+            onPointerUp={stopLongPressTimer}
+            onPointerCancel={stopLongPressTimer}
           >
-            {game.cells.map((cell, index) => {
-              const wrongFlag =
-                game.status === 'lost' && cell.flagged && !cell.mine;
-              const className = [
-                'cell',
-                cell.open ? 'open' : '',
-                cell.flagged ? 'flagged' : '',
-                cell.open && cell.mine ? 'mine' : '',
-                cell.exploded ? 'exploded' : '',
-                wrongFlag ? 'wrong' : '',
-                cell.open && !cell.mine && cell.adjacent > 0
-                  ? `number n${cell.adjacent}`
-                  : '',
-              ]
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <button
-                  className={className}
-                  key={index}
-                  type="button"
-                  tabIndex={index === tabStop ? 0 : -1}
-                  aria-label={cellLabel(cell, index)}
-                  aria-pressed={cell.flagged}
-                  disabled={isComplete}
-                  onClick={() => handleCellClick(index)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    handleContextMenu(index);
-                  }}
-                  onKeyDown={(event) => handleCellKeyDown(event, index)}
-                  onPointerDown={(event) => handlePointerDown(event, index)}
-                  onPointerUp={stopLongPressTimer}
-                  onPointerCancel={stopLongPressTimer}
-                >
-                  {cell.flagged && !cell.open && !wrongFlag && (
-                    <Flag aria-hidden="true" fill="currentColor" />
-                  )}
-                  {wrongFlag && <span aria-hidden="true">×</span>}
-                  {cell.open && cell.mine && <Bomb aria-hidden="true" />}
-                  {cell.open &&
-                    !cell.mine &&
-                    cell.adjacent > 0 &&
-                    cell.adjacent}
-                </button>
-              );
-            })}
+            {game.cells.map((cell, index) => (
+              <CellButton
+                key={index}
+                index={index}
+                mine={cell.mine}
+                adjacent={cell.adjacent}
+                open={cell.open}
+                flagged={cell.flagged}
+                exploded={cell.exploded}
+                wrongFlag={game.status === 'lost' && cell.flagged && !cell.mine}
+                tabStop={index === tabStop}
+                disabled={isComplete}
+              />
+            ))}
           </div>
         </div>
 
